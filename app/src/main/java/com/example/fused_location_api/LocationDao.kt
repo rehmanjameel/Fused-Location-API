@@ -1,5 +1,6 @@
 package com.example.fused_location_api
 
+import androidx.lifecycle.LiveData
 import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
@@ -14,7 +15,7 @@ interface LocationDao {
     suspend fun getLastLocation(): LocationEntity?
 
     @Query("SELECT * FROM location_table ORDER BY timestamp DESC")
-    suspend fun getAllLocations(): List<LocationEntity>
+    fun getAllLocations(): LiveData<List<LocationEntity>>
 
 
 }
