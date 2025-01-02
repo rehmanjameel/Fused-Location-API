@@ -14,7 +14,7 @@
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        android:background="@color/Purple">
+        android:background="@color/grey">
 
         <ImageView
             android:id="@+id/backButton"
