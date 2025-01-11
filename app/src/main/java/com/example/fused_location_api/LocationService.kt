@@ -49,10 +49,10 @@ class LocationService : Service() {
     }
 
     private fun setupLocationUpdates() {
-        locationRequest = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 5000) // 5 seconds interval
+        locationRequest = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 10800000) // 5 seconds interval
             .setWaitForAccurateLocation(false)
-            .setMinUpdateIntervalMillis(5000) // Minimum interval between updates
-            .setMaxUpdateDelayMillis(10000)  // Maximum delay for batch updates
+            .setMinUpdateIntervalMillis(36000) // Minimum interval between updates
+            .setMaxUpdateDelayMillis(1000000)  // Maximum delay for batch updates
             .build()
 
         locationCallback = object : LocationCallback() {
@@ -85,7 +85,7 @@ class LocationService : Service() {
                 val lastLocation = locationDao.getLastLocation()
 
                 // Save only if the location is not duplicate
-                if (lastLocation == null || (currentTime - lastLocation.timestamp) > 5000) {
+                if (lastLocation == null || (currentTime - lastLocation.timestamp) > 10800000) {
                     val latitude = location.latitude
                     val longitude = location.longitude
 

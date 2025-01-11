@@ -51,8 +51,8 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
 
         // Button to start/stop service
         findViewById<MaterialButton>(R.id.btnStartService).setOnClickListener {
-            startForegroundService()
         }
+        startForegroundService()
         findViewById<MaterialButton>(R.id.btnStopService).setOnClickListener {
             stopForegroundService()
         }
