@@ -134,6 +134,7 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
         if (requestCode == locationPermissionCode) {
             if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                 loadCurrentLocationOnMap()
+                startForegroundService()
             } else {
                 Toast.makeText(this, "Location permission is required.", Toast.LENGTH_SHORT).show()
             }
