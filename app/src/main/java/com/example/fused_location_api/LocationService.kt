@@ -7,6 +7,7 @@ import android.app.Service
 import android.content.Intent
 import android.location.Location
 import android.os.Build
+import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import android.util.Log
@@ -30,11 +31,24 @@ class LocationService : Service() {
     private lateinit var fusedLocationClient: FusedLocationProviderClient
     private lateinit var locationCallback: LocationCallback
     private lateinit var locationRequest: LocationRequest
+    private var lastSavedLocation: Location? = null // Store the most recent location
 
     private val serviceJob = SupervisorJob()
     private val serviceScope = CoroutineScope(Dispatchers.IO + serviceJob)
-    private var lastSavedTimestamp: Long = 0L
-
+    private var isFirstRun = true // Flag to check if it's the first run
+    private val handler = Handler(Looper.getMainLooper())
+    private val saveLocationRunnable = object : Runnable {
+        override fun run() {
+            // Fetch the last known location
+            // Save the last fetched location to the database
+            lastSavedLocation?.let { location ->
+                serviceScope.launch {
+                    saveLocationToDatabase(location)
+                }
+            }
+            handler.postDelayed(this, 3600000) // Schedule the next save in 1 hour
+        }
+    }
 
     override fun onCreate() {
         super.onCreate()
@@ -45,22 +59,22 @@ class LocationService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         startForegroundNotification()
         startLocationUpdates()
+        // Trigger the first location save immediately
+        saveFirstLocation()
         return START_STICKY
     }
 
     private fun setupLocationUpdates() {
-        locationRequest = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 3600000) // 5 seconds interval
+        locationRequest = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 25000)
             .setWaitForAccurateLocation(false)
-            .setMinUpdateIntervalMillis(3600000) // Minimum interval between updates
-            .setMaxUpdateDelayMillis(3600000)  // Maximum delay for batch updates
+            .setMinUpdateIntervalMillis(25000)
+            .setMaxUpdateDelayMillis(25000)
             .build()
 
         locationCallback = object : LocationCallback() {
             override fun onLocationResult(locationResult: LocationResult) {
                 for (location in locationResult.locations) {
-                    serviceScope.launch {
-                        saveLocationToDatabase(location)
-                    }
+                    lastSavedLocation = location
                 }
             }
         }
@@ -73,6 +87,20 @@ class LocationService : Service() {
             locationCallback,
             Looper.getMainLooper()
         )
+        // Start periodic saving after the first run
+        handler.postDelayed(saveLocationRunnable, 3600000) // 1-hour interval
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun saveFirstLocation() {
+        if (isFirstRun) {
+            fusedLocationClient.lastLocation.addOnSuccessListener { location ->
+                location?.let {
+                    saveLocationToDatabase(it)
+                    isFirstRun = false // Reset the flag after the first location is saved
+                }
+            }
+        }
     }
 
     private fun saveLocationToDatabase(location: Location) {
@@ -81,33 +109,25 @@ class LocationService : Service() {
                 val currentTime = System.currentTimeMillis()
                 val locationDao = AppDatabase.getDatabase(this@LocationService).locationDao()
 
-                // Fetch the last saved location
-                val lastLocation = locationDao.getLastLocation()
+                val latitude = location.latitude
+                val longitude = location.longitude
 
-                // Save only if the location is not duplicate
-                if (lastLocation == null || (currentTime - lastLocation.timestamp) > 3600000) {
-                    val latitude = location.latitude
-                    val longitude = location.longitude
+                val formattedDate = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date(currentTime))
+                val formattedTime = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date(currentTime))
 
-                    val formattedDate = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date(currentTime))
-                    val formattedTime = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date(currentTime))
+                val newLocation = LocationEntity(
+                    gpsId = 1001, // Example GPS ID
+                    latitude = latitude,
+                    longitude = longitude,
+                    timestamp = currentTime,
+                    date = formattedDate,
+                    time = formattedTime
+                )
 
-                    val newLocation = LocationEntity(
-                        gpsId = 1001, // Example GPS ID
-                        latitude = latitude,
-                        longitude = longitude,
-                        timestamp = currentTime,
-                        date = formattedDate,
-                        time = formattedTime
-                    )
+                // Insert the new location into the database
+                locationDao.insertLocation(newLocation)
 
-                    // Insert the new location into the database
-                    locationDao.insertLocation(newLocation)
-
-                    Log.d("LocationService", "Location saved: $latitude, $longitude at $formattedTime")
-                } else {
-                    Log.d("LocationService", "Duplicate location ignored")
-                }
+                Log.d("LocationService", "Location saved: $latitude, $longitude at $formattedTime")
             } catch (e: Exception) {
                 Log.e("LocationService", "Error saving location: ${e.message}")
             }
@@ -139,10 +159,9 @@ class LocationService : Service() {
     override fun onDestroy() {
         super.onDestroy()
         fusedLocationClient.removeLocationUpdates(locationCallback)
+        handler.removeCallbacks(saveLocationRunnable) // Remove handler callbacks
         serviceJob.cancel() // Cancel the CoroutineScope to prevent memory leaks
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
 }
-
-

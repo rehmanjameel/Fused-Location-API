@@ -2,20 +2,18 @@ package com.example.fused_location_api
 
 import android.Manifest
 import android.annotation.SuppressLint
+import android.app.ActivityManager
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.location.Location
 import android.os.Build
 import android.os.Bundle
-import android.os.Looper
-import android.util.Log
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
-import androidx.core.content.ContextCompat
-import androidx.lifecycle.lifecycleScope
-import com.google.android.gms.location.*
+import com.google.android.gms.location.FusedLocationProviderClient
+import com.google.android.gms.location.LocationServices
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.OnMapReadyCallback
@@ -23,11 +21,7 @@ import com.google.android.gms.maps.SupportMapFragment
 import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.MarkerOptions
 import com.google.android.material.button.MaterialButton
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import java.text.SimpleDateFormat
-import java.util.*
+
 
 class MainActivity : AppCompatActivity(), OnMapReadyCallback {
 
@@ -52,7 +46,10 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
         // Button to start/stop service
         findViewById<MaterialButton>(R.id.btnStartService).setOnClickListener {
         }
-        startForegroundService()
+        if (!isServiceRunning(LocationService::class.java)) {
+            startForegroundService()
+        }
+
         findViewById<MaterialButton>(R.id.btnStopService).setOnClickListener {
             stopForegroundService()
         }
@@ -134,11 +131,20 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
         if (requestCode == locationPermissionCode) {
             if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                 loadCurrentLocationOnMap()
-                startForegroundService()
+                if (!isServiceRunning(LocationService::class.java)) {
+                    startForegroundService()
+                }
             } else {
                 Toast.makeText(this, "Location permission is required.", Toast.LENGTH_SHORT).show()
             }
         }
+    }
+
+    @Suppress("DEPRECATION")
+    private fun <T> isServiceRunning(service: Class<T>): Boolean {
+        return (getSystemService(ACTIVITY_SERVICE) as ActivityManager)
+            .getRunningServices(Integer.MAX_VALUE)
+            .any { it -> it.service.className == service.name }
     }
 }
 
